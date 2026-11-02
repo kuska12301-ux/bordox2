@@ -1,0 +1,9 @@
+{
+  "name": "bordox2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BOR DROP Telegram Mini App with FK Wallet payments and admin panel",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node --env-file-if-exists=.env server.mjs", "check": "node --check server.mjs" }
+}
