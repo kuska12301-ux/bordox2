@@ -11,12 +11,14 @@ const paymentsScript = await readFile(new URL('./public/payments.js', import.met
 const gamesScript = await readFile(new URL('./public/games.js', import.meta.url));
 const rawAdminPage = await readFile(new URL('./public/admin.html', import.meta.url), 'utf8');
 const adminScript = await readFile(new URL('./public/admin.js', import.meta.url));
-const telegramSdk = '<script src="https://telegram.org/js/telegram-web-app.js"></script>';
-const adminPage = rawAdminPage.replace('<main>', `${telegramSdk}<main>`);
+const telegramSdk = '<script src="https://telegram.org/js/telegram-web-app.js?64"></script>';
+const withTelegramSdk = html => html.replace(/(<html[^>]*>)/i, `$1${telegramSdk}`);
+const adminPage = withTelegramSdk(rawAdminPage);
 const paymentUi = `<style>.payment-dialog{border:1px solid #ff852d66;border-radius:26px;padding:0;max-width:390px;width:calc(100% - 28px);overflow:hidden;background:#1d1528;color:#fff;box-shadow:0 28px 90px #000b}.payment-dialog::backdrop{background:#08050dbb;backdrop-filter:blur(8px)}.payment-head{padding:22px 22px 13px;background:radial-gradient(circle at 85% 0,#7730a755,transparent 45%),linear-gradient(135deg,#291738,#1b1425)}.payment-head h2{margin:4px 0 7px}.payment-body{padding:18px 22px 24px}.dialog-close{float:right;border:1px solid #ffffff22!important;background:#ffffff12!important;color:#fff!important;border-radius:50%;width:34px;height:34px;font-size:21px}.money-field{display:flex;align-items:center;margin:10px 0 15px;border:1px solid #6f527d;background:#110c19;border-radius:17px;padding:5px 12px;box-shadow:inset 0 0 0 1px #0005}.money-field input{width:100%;min-width:0;border:0!important;outline:0;background:transparent!important;color:#fff!important;font-size:28px!important;font-weight:850;padding:13px 5px!important}.money-field .unit{color:#ff9b45;font-weight:800}.payment-chips{display:flex;gap:7px;margin-bottom:16px}.payment-chips button{flex:1;border:1px solid #624770;background:#2b1e37;color:#e6dced;border-radius:11px;padding:9px 4px;font-weight:750}.payment-action{width:100%;min-height:50px;border-radius:15px!important}.payment-action:disabled{filter:grayscale(.35);opacity:.7}.payment-status{min-height:20px;margin:13px 2px 0!important;color:#cfc3d8!important}</style><dialog class="payment-dialog" id="deposit-dialog"><div class="payment-head"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button></form><h2>Пополнить баланс</h2><p class="sub">Оплата через FK Wallet в USDT</p></div><div class="payment-body"><label class="smalltitle" for="deposit-amount">Введите сумму</label><div class="money-field"><input id="deposit-amount" inputmode="decimal" type="number" min="0.10" max="10000" step="0.01" value="10.00"><span class="unit">USDT</span></div><div class="payment-chips" data-target="deposit-amount"><button type="button" data-value="5">$5</button><button type="button" data-value="10">$10</button><button type="button" data-value="25">$25</button><button type="button" data-value="50">$50</button></div><button class="primary payment-action" id="deposit-create">Создать счёт на оплату</button><p class="payment-status" id="deposit-status" role="status"></p></div></dialog><dialog class="payment-dialog" id="withdraw-dialog"><div class="payment-head"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button></form><h2>Вывести средства</h2><p class="sub">Автовыплата на ваш @username в FK Wallet</p></div><div class="payment-body"><label class="smalltitle" for="withdraw-amount">Введите сумму вывода</label><div class="money-field"><input id="withdraw-amount" inputmode="decimal" type="number" min="0.10" max="10000" step="0.01" value="5.00"><span class="unit">USDT</span></div><div class="payment-chips" data-target="withdraw-amount"><button type="button" data-value="1">$1</button><button type="button" data-value="5">$5</button><button type="button" data-value="10">$10</button><button type="button" data-value="all">Всё</button></div><button class="primary payment-action" id="withdraw-create">Вывести средства</button><p class="payment-status" id="withdraw-status" role="status"></p></div></dialog><script src="/payments.js"></script>`;
-const page = rawPage.includes('</body>')
-  ? rawPage.replace('</body>', `${telegramSdk}${paymentUi}<script src="/games.js"></script></body>`)
-  : rawPage.replace('</html>', `${telegramSdk}${paymentUi}<script src="/games.js"></script></html>`);
+const miniAppPage = withTelegramSdk(rawPage);
+const page = miniAppPage.includes('</body>')
+  ? miniAppPage.replace('</body>', `${paymentUi}<script src="/games.js"></script></body>`)
+  : miniAppPage.replace('</html>', `${paymentUi}<script src="/games.js"></script></html>`);
 const dataDir = new URL('./data/', import.meta.url);
 const dbFile = new URL('./data/ledger.json', import.meta.url);
 await mkdir(dataDir, { recursive: true });
@@ -51,7 +53,9 @@ function verifyTelegram(initData) {
   if (!initData || !process.env.TELEGRAM_BOT_TOKEN) return null;
   const params = new URLSearchParams(initData);
   const received = params.get('hash');
-  params.delete('hash'); params.delete('signature');
+  // Bot-token validation signs every received field except `hash`.
+  // Modern Telegram clients include `signature`; removing it breaks HMAC validation.
+  params.delete('hash');
   const authDate = Number(params.get('auth_date'));
   if (!received || !authDate || Math.abs(Date.now() / 1000 - authDate) > 604800) return null;
   const check = [...params.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join('\n');
