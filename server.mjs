@@ -5,7 +5,7 @@ import { LavePay, verifyLaveWebhook } from './sdk/lave-pay.mjs';
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
-const publicUrl = String(process.env.PUBLIC_URL || 'https://bordox2.bothost.tech').replace(/\/$/, '');
+const publicUrl = String(process.env.PUBLIC_URL || 'https://borcase.bothost.tech').replace(/\/$/, '');
 const rawPage = await readFile(new URL('./public/index.html', import.meta.url), 'utf8');
 const paymentsScript = await readFile(new URL('./public/payments.js', import.meta.url));
 const gamesScript = await readFile(new URL('./public/games.js', import.meta.url));
@@ -372,7 +372,8 @@ async function initializeTelegram() {
     await telegramCall('deleteWebhook', { drop_pending_updates: false });
     await telegramCall('setChatMenuButton', { menu_button: { type: 'web_app', text: '🎃 Открыть BOR CASE', web_app: { url: `${publicUrl}/` } } });
     await telegramCall('setMyCommands', { commands: [{ command: 'start', description: 'Запустить BOR CASE' }] });
-    console.log('Telegram bot ready: @BOR_DROP_BOT');
+    const bot = await telegramCall('getMe', {});
+    console.log(`Telegram bot ready: @${bot.username || 'unknown'}`);
     pollTelegram();
   } catch (error) {
     console.error(`Telegram init: ${error.message}`);
