@@ -126,7 +126,7 @@ if (withdrawDialog) {
   document.getElementById('withdraw-create').addEventListener('click', async event => {
     const amount = Number(document.getElementById('withdraw-amount').value);
     if (latestWager > 0.000001) return withdrawStatus.textContent = `Осталось отыграть $${latestWager.toFixed(2)}.`;
-    if (!Number.isFinite(amount) || amount < 0.1) return withdrawStatus.textContent = 'Минимальная сумма вывода — $0.10.';
+    if (!Number.isFinite(amount) || amount < 2) return withdrawStatus.textContent = 'Минимальная сумма вывода — 2 USDT.';
     if (!paymentInitData()) return withdrawStatus.textContent = 'Откройте приложение через Telegram-бота.';
     const button = event.currentTarget;
     button.disabled = true; withdrawStatus.textContent = 'Создаём выплату…';
