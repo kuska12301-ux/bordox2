@@ -46,6 +46,12 @@ document.querySelectorAll('.payment-chips').forEach(group => group.querySelector
   input.value = button.dataset.value === 'all' ? latestBalance.toFixed(2) : button.dataset.value; input.focus();
 })));
 
+document.querySelectorAll('[data-payment-method-group]').forEach(group => {
+  group.querySelectorAll('[data-payment-method]:not(:disabled)').forEach(button => button.addEventListener('click', () => {
+    group.querySelectorAll('[data-payment-method]:not(:disabled)').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
+  }));
+});
+
 const depositDialog = document.getElementById('deposit-dialog'), depositStatus = document.getElementById('deposit-status');
 const depositPayLink = document.getElementById('deposit-pay-link');
 window.openPaymentDialog = kind => {
