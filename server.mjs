@@ -29,7 +29,7 @@ const dbFile = new URL('./data/ledger.json', import.meta.url);
 await mkdir(dataDir, { recursive: true });
 let db = { users: {}, invoices: {}, payouts: {}, promos: {}, transactions: [], webhookEvents: {}, adminLog: [] };
 try { db = JSON.parse(await readFile(dbFile, 'utf8')); } catch {}
-db.users ||= {}; db.invoices ||= {}; db.payouts ||= {}; db.promos ||= {}; db.transactions ||= []; db.webhookEvents ||= {}; db.adminLog ||= []; db.games ||= {}; db.fridayRounds ||= {}; db.banners ||= []; db.caseOpens ||= {}; db.houseBalance ||= '0.000000';
+db.users ||= {}; db.invoices ||= {}; db.payouts ||= {}; db.promos ||= {}; db.transactions ||= []; db.webhookEvents ||= {}; db.adminLog ||= []; db.games ||= {}; db.fridayRounds ||= {}; db.banners ||= []; db.caseOpens ||= {}; db.houseBalance ||= '0.000000'; db.maintenanceMode = db.maintenanceMode === true;
 let saveQueue = Promise.resolve();
 function persist() {
   saveQueue = saveQueue.then(async () => {
@@ -186,6 +186,16 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { status: 'ok', paymentsEnabled, webhookEnabled });
+    if (req.method === 'GET' && url.pathname === '/api/maintenance') {
+      const user = userFrom(req);
+      if (!user?.id) return json(res, 401, { error: 'TELEGRAM_AUTH_REQUIRED' });
+      return json(res, 200, { enabled: db.maintenanceMode, isAdmin: isAdmin(user) });
+    }
+    if (url.pathname.startsWith('/api/') && db.maintenanceMode) {
+      const user = userFrom(req);
+      if (!user?.id) return json(res, 401, { error: 'TELEGRAM_AUTH_REQUIRED' });
+      if (!isAdmin(user)) return json(res, 503, { error: 'MAINTENANCE_MODE', message: 'Технические работы. Скоро вернёмся.' });
+    }
     if (req.method === 'GET' && url.pathname === '/api/banner') return json(res, 200, db.banners.find(x => x.id === db.activeBannerId) || null);
     if (req.method === 'GET' && url.pathname === '/api/game/players') {
       const mode = String(url.searchParams.get('mode') || 'Арена');
@@ -212,6 +222,8 @@ const server = http.createServer(async (req, res) => {
       const currentAccount = account(String(user.id));
       currentAccount.username = user.username || currentAccount.username;
       currentAccount.firstName = user.first_name || currentAccount.firstName;
+      if (req.method === 'GET' && url.pathname === '/api/maintenance') return json(res, 200, { enabled: db.maintenanceMode, isAdmin: isAdmin(user) });
+      if (db.maintenanceMode && !isAdmin(user)) return json(res, 503, { error: 'MAINTENANCE_MODE', message: 'Технические работы. Скоро вернёмся.' });
       if (req.method === 'GET' && url.pathname === '/api/balance') return json(res, 200, { balance: currentAccount.balance, wagerRemaining: currentAccount.wagerRemaining, freeCaseOpens: currentAccount.freeCaseOpens, asset: 'USDT', isAdmin: isAdmin(user) });
       if (req.method === 'GET' && url.pathname === '/api/profile') return json(res, 200, { id: String(user.id), username: user.username, firstName: user.first_name, photoUrl: user.photo_url, balance: currentAccount.balance, wagerRemaining: currentAccount.wagerRemaining, lastDailyBonus: currentAccount.lastDailyBonus, isAdmin: isAdmin(user) });
       if (req.method === 'POST' && url.pathname === '/api/cases/fresh-bar/open') {
@@ -351,6 +363,15 @@ const server = http.createServer(async (req, res) => {
       }
       if (url.pathname.startsWith('/api/admin/')) {
         if (!isAdmin(user)) return json(res, 403, { error: 'ADMIN_REQUIRED', message: 'Доступ только для администратора.' });
+        if (req.method === 'GET' && url.pathname === '/api/admin/maintenance') return json(res, 200, { enabled: db.maintenanceMode });
+        if (req.method === 'POST' && url.pathname === '/api/admin/maintenance') {
+          const input = JSON.parse(await getBody(req) || '{}');
+          db.maintenanceMode = input.enabled === true;
+          db.adminLog.unshift({ action: db.maintenanceMode ? 'Включены технические работы' : 'Выключены технические работы', adminId: String(user.id), active: db.maintenanceMode, at: new Date().toISOString() });
+          db.adminLog = db.adminLog.slice(0, 500);
+          await persist();
+          return json(res, 200, { enabled: db.maintenanceMode });
+        }
         if (req.method === 'GET' && url.pathname === '/api/admin/overview') {
           const users = Object.entries(db.users).map(([id, value]) => ({ id, username: value.username, firstName: value.firstName, balance: value.balance, wagerRemaining: value.wagerRemaining || '0.000000', freeCaseOpens: Number(value.freeCaseOpens||0), redeemedPromos: value.redeemedPromos?.length || 0 }));
           const promos = Object.values(db.promos).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
