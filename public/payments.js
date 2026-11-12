@@ -15,14 +15,15 @@ const publicMessage = (data, fallback) => {
 };
 
 let latestBalance = 0, latestWager = 0, balanceRefreshReady = false;
-const withdrawHeaderButton = document.querySelector('[data-info="Вывод"]');
+const withdrawalButtons = () => document.querySelectorAll('[data-action="withdraw"], [data-info="Вывод"]');
 window.updateWithdrawalState = (balance = latestBalance, wager = latestWager) => {
   latestBalance = Number(balance) || 0; latestWager = Math.max(0, Number(wager) || 0);
-  if (!withdrawHeaderButton) return;
   const label = latestWager > 0.000001 ? `Осталось отыграть $${latestWager.toFixed(2)}` : 'Вывести';
+  withdrawalButtons().forEach(withdrawHeaderButton => {
   withdrawHeaderButton.setAttribute('aria-label', label); withdrawHeaderButton.title = label;
   withdrawHeaderButton.classList.toggle('wager-active', latestWager > 0.000001);
   withdrawHeaderButton.dataset.wagerLabel = latestWager > 0.000001 ? `$${latestWager.toFixed(2)}` : '';
+  });
 };
 
 window.redeemServerPromo = async code => {
@@ -45,8 +46,31 @@ document.querySelectorAll('.payment-chips').forEach(group => group.querySelector
   input.value = button.dataset.value === 'all' ? latestBalance.toFixed(2) : button.dataset.value; input.focus();
 })));
 
-const depositButton = document.querySelector('[data-info="Пополнение"]');
 const depositDialog = document.getElementById('deposit-dialog'), depositStatus = document.getElementById('deposit-status');
+const depositPayLink = document.getElementById('deposit-pay-link');
+window.openPaymentDialog = kind => {
+  if (kind === 'deposit' && depositDialog) {
+    depositStatus.textContent = pendingInvoiceId ? 'Ожидаем подтверждение оплаты в Лавэшке…' : '';
+    depositDialog.showModal();
+  } else if (kind === 'withdraw' && withdrawDialog) {
+    withdrawStatus.textContent = latestWager > 0.000001 ? `Для вывода осталось отыграть $${latestWager.toFixed(2)}.` : '';
+    document.getElementById('withdraw-create').disabled = latestWager > 0.000001;
+    withdrawDialog.showModal();
+    refreshServerBalance();
+  }
+};
+function openPaymentUrl(value) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:') throw new Error('Invalid payment URL');
+  const webApp = window.Telegram?.WebApp;
+  if (/^(t\.me|telegram\.me)$/i.test(url.hostname) && webApp?.openTelegramLink) webApp.openTelegramLink(url.href);
+  else if (webApp?.openLink) webApp.openLink(url.href);
+  else window.open(url.href, '_blank', 'noopener');
+}
+depositPayLink?.addEventListener('click', event => {
+  event.preventDefault();
+  try { openPaymentUrl(depositPayLink.href); } catch { depositStatus.textContent = 'Не удалось открыть ссылку на оплату.'; }
+});
 let pendingInvoiceId = sessionStorage.getItem('borDropPendingInvoice') || '';
 let invoicePollTimer = 0;
 async function checkPendingInvoice() {
@@ -69,48 +93,44 @@ function watchInvoice(id) {
   pendingInvoiceId = id; sessionStorage.setItem('borDropPendingInvoice', id); clearInterval(invoicePollTimer);
   invoicePollTimer = setInterval(checkPendingInvoice, 3000); checkPendingInvoice();
 }
-if (depositButton && depositDialog) {
-  depositButton.removeAttribute('data-info');
-  depositButton.onclick = null;
-  depositButton.addEventListener('click', () => { depositStatus.textContent = ''; depositDialog.showModal(); });
+if (depositDialog) {
   document.getElementById('deposit-create').addEventListener('click', async event => {
     const amount = Number(document.getElementById('deposit-amount').value);
     if (!Number.isFinite(amount) || amount < 0.1) return depositStatus.textContent = 'Минимальная сумма пополнения — $0.10.';
     if (!paymentInitData()) return depositStatus.textContent = 'Откройте приложение через Telegram-бота.';
-    event.currentTarget.disabled = true; depositStatus.textContent = 'Создаём счёт…';
+    const button = event.currentTarget;
+    button.disabled = true; depositStatus.textContent = 'Создаём счёт…';
     try {
       const response = await fetch('/api/deposits', { method: 'POST', headers: paymentHeaders(), body: JSON.stringify({ amount }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return depositStatus.textContent = publicMessage(data, 'Не удалось создать счёт.');
       depositStatus.textContent = 'Счёт готов. Подтвердите оплату в Лавэшке.';
       if (data.id) watchInvoice(data.id);
-      if (data.paymentUrl) window.Telegram?.WebApp?.openTelegramLink?.(data.paymentUrl) || window.open(data.paymentUrl, '_blank', 'noopener');
+      if (data.paymentUrl) {
+        if (depositPayLink) { depositPayLink.href = data.paymentUrl; depositPayLink.hidden = false; }
+        openPaymentUrl(data.paymentUrl);
+      } else depositStatus.textContent = 'Счёт создан, но сервис не вернул ссылку на оплату.';
     } catch { depositStatus.textContent = 'Связь прервалась. Попробуйте ещё раз.'; }
-    finally { event.currentTarget.disabled = false; }
+    finally { button.disabled = false; }
   });
 }
 
 const withdrawDialog = document.getElementById('withdraw-dialog'), withdrawStatus = document.getElementById('withdraw-status');
-if (withdrawHeaderButton && withdrawDialog) {
-  withdrawHeaderButton.removeAttribute('data-info');
-  withdrawHeaderButton.onclick = null;
-  withdrawHeaderButton.addEventListener('click', () => {
-    withdrawStatus.textContent = latestWager > 0.000001 ? `Для вывода осталось отыграть $${latestWager.toFixed(2)}.` : '';
-    document.getElementById('withdraw-create').disabled = latestWager > 0.000001; withdrawDialog.showModal();
-  });
+if (withdrawDialog) {
   document.getElementById('withdraw-create').addEventListener('click', async event => {
     const amount = Number(document.getElementById('withdraw-amount').value);
     if (latestWager > 0.000001) return withdrawStatus.textContent = `Осталось отыграть $${latestWager.toFixed(2)}.`;
     if (!Number.isFinite(amount) || amount < 0.1) return withdrawStatus.textContent = 'Минимальная сумма вывода — $0.10.';
     if (!paymentInitData()) return withdrawStatus.textContent = 'Откройте приложение через Telegram-бота.';
-    event.currentTarget.disabled = true; withdrawStatus.textContent = 'Создаём выплату…';
+    const button = event.currentTarget;
+    button.disabled = true; withdrawStatus.textContent = 'Создаём выплату…';
     try {
       const response = await fetch('/api/withdrawals', { method: 'POST', headers: paymentHeaders(), body: JSON.stringify({ amount }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return withdrawStatus.textContent = publicMessage(data, 'Не удалось создать выплату.');
       withdrawStatus.textContent = 'Выплата отправлена в Лавэшку.'; await refreshServerBalance();
     } catch { withdrawStatus.textContent = 'Связь прервалась. Попробуйте ещё раз.'; }
-    finally { event.currentTarget.disabled = latestWager > 0.000001; }
+    finally { button.disabled = latestWager > 0.000001; }
   });
 }
 
@@ -120,6 +140,7 @@ async function refreshServerBalance() {
     const response = await fetch('/api/balance', { headers: { 'X-Telegram-Init-Data': paymentInitData() } }); if (!response.ok) return;
     const data = await response.json(), balance = document.getElementById('balance'), nextBalance = Number(data.balance) || 0;
     if (balanceRefreshReady && nextBalance > latestBalance) window.animateBalanceCredit?.(nextBalance - latestBalance, nextBalance);
+    window.applyPaymentWallet?.(data);
     if (balance && !balance.classList.contains('is-counting')) balance.textContent = nextBalance.toFixed(2).replace('.', ','); balanceRefreshReady = true; window.updateWithdrawalState(nextBalance, data.wagerRemaining);
   } catch {}
 }
