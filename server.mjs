@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
-import { FKPay, verifyFKWebhook } from './sdk/fk-pay.mjs';
+import { LavePay, verifyLaveWebhook } from './sdk/lave-pay.mjs';
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
@@ -14,7 +14,7 @@ const adminScript = await readFile(new URL('./public/admin.js', import.meta.url)
 const telegramSdk = '<script src="https://telegram.org/js/telegram-web-app.js?64"></script>';
 const withTelegramSdk = html => html.replace(/(<html[^>]*>)/i, `$1${telegramSdk}`);
 const adminPage = withTelegramSdk(rawAdminPage);
-const paymentUi = `<style>.payment-dialog{border:1px solid #ff852d66;border-radius:26px;padding:0;max-width:390px;width:calc(100% - 28px);overflow:hidden;background:#1d1528;color:#fff;box-shadow:0 28px 90px #000b}.payment-dialog::backdrop{background:#08050dbb;backdrop-filter:blur(8px)}.payment-head{padding:22px 22px 13px;background:radial-gradient(circle at 85% 0,#7730a755,transparent 45%),linear-gradient(135deg,#291738,#1b1425)}.payment-head h2{margin:4px 0 7px}.payment-body{padding:18px 22px 24px}.dialog-close{float:right;border:1px solid #ffffff22!important;background:#ffffff12!important;color:#fff!important;border-radius:50%;width:34px;height:34px;font-size:21px}.money-field{display:flex;align-items:center;margin:10px 0 15px;border:1px solid #6f527d;background:#110c19;border-radius:17px;padding:5px 12px;box-shadow:inset 0 0 0 1px #0005}.money-field input{width:100%;min-width:0;border:0!important;outline:0;background:transparent!important;color:#fff!important;font-size:28px!important;font-weight:850;padding:13px 5px!important}.money-field .unit{color:#ff9b45;font-weight:800}.payment-chips{display:flex;gap:7px;margin-bottom:16px}.payment-chips button{flex:1;border:1px solid #624770;background:#2b1e37;color:#e6dced;border-radius:11px;padding:9px 4px;font-weight:750}.payment-action{width:100%;min-height:50px;border-radius:15px!important}.payment-action:disabled{filter:grayscale(.35);opacity:.7}.payment-status{min-height:20px;margin:13px 2px 0!important;color:#cfc3d8!important}</style><dialog class="payment-dialog" id="deposit-dialog"><div class="payment-head"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button></form><h2>Пополнить баланс</h2><p class="sub">Оплата через FK Wallet в USDT</p></div><div class="payment-body"><label class="smalltitle" for="deposit-amount">Введите сумму</label><div class="money-field"><input id="deposit-amount" inputmode="decimal" type="number" min="0.10" max="10000" step="0.01" value="10.00"><span class="unit">USDT</span></div><div class="payment-chips" data-target="deposit-amount"><button type="button" data-value="5">$5</button><button type="button" data-value="10">$10</button><button type="button" data-value="25">$25</button><button type="button" data-value="50">$50</button></div><button class="primary payment-action" id="deposit-create">Создать счёт на оплату</button><p class="payment-status" id="deposit-status" role="status"></p></div></dialog><dialog class="payment-dialog" id="withdraw-dialog"><div class="payment-head"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button></form><h2>Вывести средства</h2><p class="sub">Автовыплата на ваш @username в FK Wallet</p></div><div class="payment-body"><label class="smalltitle" for="withdraw-amount">Введите сумму вывода</label><div class="money-field"><input id="withdraw-amount" inputmode="decimal" type="number" min="0.10" max="10000" step="0.01" value="5.00"><span class="unit">USDT</span></div><div class="payment-chips" data-target="withdraw-amount"><button type="button" data-value="1">$1</button><button type="button" data-value="5">$5</button><button type="button" data-value="10">$10</button><button type="button" data-value="all">Всё</button></div><button class="primary payment-action" id="withdraw-create">Вывести средства</button><p class="payment-status" id="withdraw-status" role="status"></p></div></dialog><script src="/payments.js"></script>`;
+const paymentUi = `<style>.payment-dialog{border:1px solid #ff852d66;border-radius:26px;padding:0;max-width:390px;width:calc(100% - 28px);overflow:hidden;background:#1d1528;color:#fff;box-shadow:0 28px 90px #000b}.payment-dialog::backdrop{background:#08050dbb;backdrop-filter:blur(8px)}.payment-head{padding:22px 22px 13px;background:radial-gradient(circle at 85% 0,#7730a755,transparent 45%),linear-gradient(135deg,#291738,#1b1425)}.payment-head h2{margin:4px 0 7px}.payment-body{padding:18px 22px 24px}.dialog-close{float:right;border:1px solid #ffffff22!important;background:#ffffff12!important;color:#fff!important;border-radius:50%;width:34px;height:34px;font-size:21px}.money-field{display:flex;align-items:center;margin:10px 0 15px;border:1px solid #6f527d;background:#110c19;border-radius:17px;padding:5px 12px;box-shadow:inset 0 0 0 1px #0005}.money-field input{width:100%;min-width:0;border:0!important;outline:0;background:transparent!important;color:#fff!important;font-size:28px!important;font-weight:850;padding:13px 5px!important}.money-field .unit{color:#ff9b45;font-weight:800}.payment-chips{display:flex;gap:7px;margin-bottom:16px}.payment-chips button{flex:1;border:1px solid #624770;background:#2b1e37;color:#e6dced;border-radius:11px;padding:9px 4px;font-weight:750}.payment-action{width:100%;min-height:50px;border-radius:15px!important}.payment-action:disabled{filter:grayscale(.35);opacity:.7}.payment-status{min-height:20px;margin:13px 2px 0!important;color:#cfc3d8!important}</style><dialog class="payment-dialog" id="deposit-dialog"><div class="payment-head"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button></form><h2>Пополнить баланс</h2><p class="sub">Оплата через Лавэшку в USDT</p></div><div class="payment-body"><label class="smalltitle" for="deposit-amount">Введите сумму</label><div class="money-field"><input id="deposit-amount" inputmode="decimal" type="number" min="0.10" max="10000" step="0.01" value="10.00"><span class="unit">USDT</span></div><div class="payment-chips" data-target="deposit-amount"><button type="button" data-value="5">$5</button><button type="button" data-value="10">$10</button><button type="button" data-value="25">$25</button><button type="button" data-value="50">$50</button></div><button class="primary payment-action" id="deposit-create">Создать счёт на оплату</button><p class="payment-status" id="deposit-status" role="status"></p></div></dialog><dialog class="payment-dialog" id="withdraw-dialog"><div class="payment-head"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button></form><h2>Вывести средства</h2><p class="sub">Автовыплата на ваш аккаунт в Лавэшке</p></div><div class="payment-body"><label class="smalltitle" for="withdraw-amount">Введите сумму вывода</label><div class="money-field"><input id="withdraw-amount" inputmode="decimal" type="number" min="0.10" max="10000" step="0.01" value="5.00"><span class="unit">USDT</span></div><div class="payment-chips" data-target="withdraw-amount"><button type="button" data-value="1">$1</button><button type="button" data-value="5">$5</button><button type="button" data-value="10">$10</button><button type="button" data-value="all">Всё</button></div><button class="primary payment-action" id="withdraw-create">Вывести средства</button><p class="payment-status" id="withdraw-status" role="status"></p></div></dialog><script src="/payments.js"></script>`;
 const miniAppPage = withTelegramSdk(rawPage);
 const page = miniAppPage.includes('</body>')
   ? miniAppPage.replace('</body>', `${paymentUi}<script src="/games.js"></script></body>`)
@@ -35,9 +35,9 @@ function persist() {
   return saveQueue;
 }
 
-const paymentsEnabled = Boolean(process.env.FK_PAY_BASE_URL && process.env.FK_PAY_API_KEY && process.env.TELEGRAM_BOT_TOKEN);
-const webhookEnabled = Boolean(paymentsEnabled && process.env.FK_WEBHOOK_SECRET);
-const pay = paymentsEnabled ? new FKPay({ baseUrl: process.env.FK_PAY_BASE_URL, apiKey: process.env.FK_PAY_API_KEY }) : null;
+const paymentsEnabled = Boolean(process.env.LAVEPAY_API_KEY && process.env.TELEGRAM_BOT_TOKEN);
+const webhookEnabled = Boolean(paymentsEnabled && process.env.LAVEPAY_WEBHOOK_SECRET);
+const pay = paymentsEnabled ? new LavePay({ baseUrl: process.env.LAVEPAY_BASE_URL, apiKey: process.env.LAVEPAY_API_KEY }) : null;
 const json = (res, status, value) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); };
 async function getBody(req, limit = 64_000) {
   const chunks = []; let size = 0;
@@ -115,7 +115,7 @@ async function creditPaidInvoice(remoteInvoice) {
   user.balance = (Number(user.balance) + Number(local.amount)).toFixed(6);
   user.creditedInvoices.push(invoice.id);
   local.status = 'paid'; local.paidAt = new Date().toISOString();
-  recordTransaction({ userId: local.userId, type: 'deposit', amount: local.amount, balanceAfter: user.balance, description: 'Пополнение FK Pay', reference: invoice.id });
+  recordTransaction({ userId: local.userId, type: 'deposit', amount: local.amount, balanceAfter: user.balance, description: 'Пополнение Lave Pay', reference: invoice.id });
   await persist();
   return true;
 }
@@ -127,16 +127,16 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { status: 'ok', paymentsEnabled, webhookEnabled });
-    if (req.method === 'POST' && url.pathname === '/api/fk/webhook') {
+    if (req.method === 'POST' && url.pathname === '/api/lavepay/webhook') {
       if (!webhookEnabled) return json(res, 503, { error: 'WEBHOOK_NOT_CONFIGURED' });
       const rawBody = await getBody(req);
-      const valid = verifyFKWebhook({ secret: process.env.FK_WEBHOOK_SECRET, timestamp: req.headers['fk-timestamp'], signature: req.headers['fk-signature'], rawBody });
+      const valid = verifyLaveWebhook({ secret: process.env.LAVEPAY_WEBHOOK_SECRET, timestamp: req.headers['x-lavepay-timestamp'], signature: req.headers['x-lavepay-signature'], rawBody });
       if (!valid) return json(res, 401, { error: 'INVALID_SIGNATURE' });
       const event = JSON.parse(rawBody);
-      const eventId = String(req.headers['fk-event-id'] || event.id || createHash('sha256').update(rawBody).digest('hex'));
+      const eventId = String(req.headers['x-lavepay-event-id'] || event.id || createHash('sha256').update(rawBody).digest('hex'));
       if (db.webhookEvents[eventId]) return json(res, 200, { ok: true, duplicate: true });
       db.webhookEvents[eventId] = new Date().toISOString();
-      if (event.type === 'invoice.paid' || event.event === 'invoice.paid') await creditPaidInvoice(event.data?.invoice || event.invoice || event.data);
+      if (event.type === 'invoice.paid') await creditPaidInvoice(event.data);
       await persist();
       return json(res, 200, { ok: true });
     }
@@ -252,13 +252,13 @@ const server = http.createServer(async (req, res) => {
         const input = JSON.parse(await getBody(req) || '{}');
         const amount = Number(input.amount);
         if (!Number.isFinite(amount) || amount < 0.1 || amount > 10_000) return json(res, 400, { error: 'INVALID_AMOUNT' });
-        const idempotencyKey = randomUUID();
-        const result = await pay.createInvoice({ amount: amount.toFixed(6), asset: 'USDT', description: 'Пополнение BOR DROP', payload: `deposit:${user.id}:${idempotencyKey}`, expiresIn: 3600 }, idempotencyKey);
+        const idempotencyKey = LavePay.idempotencyKey('deposit');
+        const result = await pay.createInvoice({ amount: amount.toFixed(2), currency: 'USD', accept: ['USDT'], description: 'Пополнение BOR CASE', order_id: idempotencyKey, payload: `deposit:${user.id}`, return_url: `${publicUrl}/`, ttl: 3600 });
         const invoice = normalizeInvoice(result);
-        if (!invoice?.id) throw new Error('FK Pay response has no invoice id');
+        if (!invoice?.id) throw new Error('Lave Pay response has no invoice id');
         db.invoices[invoice.id] = { userId: String(user.id), amount: amount.toFixed(6), status: invoice.status || 'active', idempotencyKey, createdAt: new Date().toISOString() };
         await persist();
-        return json(res, 201, { id: invoice.id, status: invoice.status, paymentUrl: invoice.telegramUrl || invoice.paymentUrl || invoice.payUrl });
+        return json(res, 201, { id: invoice.id, status: invoice.status, paymentUrl: invoice.pay_url });
       }
       if (req.method === 'POST' && url.pathname === '/api/withdrawals') {
         if (!paymentsEnabled) return json(res, 503, { error: 'PAYMENTS_NOT_CONFIGURED', message: 'Выводы пока не настроены.' });
@@ -271,17 +271,17 @@ const server = http.createServer(async (req, res) => {
           const wallet = account(String(user.id));
           if (Number(wallet.balance) < amount) return { insufficient: true };
           if (Number(wallet.wagerRemaining) > 0) return { wager: wallet.wagerRemaining };
-          const idempotencyKey = FKPay.idempotencyKey();
+          const idempotencyKey = LavePay.idempotencyKey('withdraw');
           const localId = randomUUID();
           wallet.balance = (Number(wallet.balance) - amount).toFixed(6);
           db.payouts[localId] = { userId: String(user.id), recipient: `@${user.username}`, amount: fixedAmount, status: 'processing', idempotencyKey, createdAt: new Date().toISOString() };
           await persist();
           try {
-            const remote = await pay.createPayout({ recipient: `@${user.username}`, amount: fixedAmount, description: 'Вывод BOR DROP', payload: `withdrawal:${localId}` }, idempotencyKey);
+            const remote = await pay.createTransfer({ recipient: `@${user.username}`, amount: amount.toFixed(2), comment: 'Вывод BOR CASE', idempotency_key: idempotencyKey });
             const value = remote?.payout || remote?.data?.payout || remote?.data || remote;
             db.payouts[localId].remoteId = value?.id;
-            db.payouts[localId].status = value?.status || 'processing';
-            recordTransaction({ userId: user.id, type: 'withdrawal', amount: -amount, balanceAfter: wallet.balance, description: 'Автовывод FK Pay', reference: value?.id || localId });
+            db.payouts[localId].status = value?.status || 'completed';
+            recordTransaction({ userId: user.id, type: 'withdrawal', amount: -amount, balanceAfter: wallet.balance, description: 'Автовывод Lave Pay', reference: value?.id || localId });
             await persist();
             return { id: value?.id || localId, status: db.payouts[localId].status, balance: wallet.balance };
           } catch (error) {
@@ -347,8 +347,8 @@ async function answerTelegramMessage(message) {
   const name = message.from?.first_name || 'игрок';
   await telegramCall('sendMessage', {
     chat_id: chatId,
-    text: `🎃 Привет, ${name}!\n\nДобро пожаловать в BOR DROP. Выигрывай и выводи!`,
-    reply_markup: { inline_keyboard: [[{ text: '🎃 Открыть BOR DROP', web_app: { url: `${publicUrl}/` } }]] }
+    text: `🎃 Привет, ${name}!\n\nДобро пожаловать в BOR CASE. Выигрывай и выводи!`,
+    reply_markup: { inline_keyboard: [[{ text: '🎃 Открыть BOR CASE', web_app: { url: `${publicUrl}/` } }]] }
   });
 }
 async function pollTelegram() {
@@ -370,8 +370,8 @@ async function initializeTelegram() {
   if (!telegramApi) return;
   try {
     await telegramCall('deleteWebhook', { drop_pending_updates: false });
-    await telegramCall('setChatMenuButton', { menu_button: { type: 'web_app', text: '🎃 Открыть BOR DROP', web_app: { url: `${publicUrl}/` } } });
-    await telegramCall('setMyCommands', { commands: [{ command: 'start', description: 'Запустить BOR DROP' }] });
+    await telegramCall('setChatMenuButton', { menu_button: { type: 'web_app', text: '🎃 Открыть BOR CASE', web_app: { url: `${publicUrl}/` } } });
+    await telegramCall('setMyCommands', { commands: [{ command: 'start', description: 'Запустить BOR CASE' }] });
     console.log('Telegram bot ready: @BOR_DROP_BOT');
     pollTelegram();
   } catch (error) {
@@ -380,8 +380,10 @@ async function initializeTelegram() {
 }
 
 server.listen(port, host, () => {
-  console.log(`BOR DROP: http://${host}:${port} -> ${publicUrl} (FK Pay ${paymentsEnabled ? 'enabled' : 'not configured'})`);
+  console.log(`BOR CASE: http://${host}:${port} -> ${publicUrl} (Lave Pay ${paymentsEnabled ? 'enabled' : 'not configured'})`);
   initializeTelegram();
 });
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));
+
+
 
