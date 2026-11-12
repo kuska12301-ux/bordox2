@@ -1,0 +1,170 @@
+{
+  "users": {
+    "8549949225": {
+      "balance": "0.300000",
+      "wagerRemaining": "0.100000",
+      "creditedInvoices": [],
+      "redeemedPromos": [
+        "BORSTART"
+      ],
+      "lastDailyBonus": 0,
+      "username": "preview_admin",
+      "firstName": "BOR CASE Preview",
+      "freeCaseWagerMultipliers": [],
+      "freeCaseOpens": 0
+    }
+  },
+  "invoices": {},
+  "payouts": {},
+  "promos": {
+    "BORSTART": {
+      "code": "BORSTART",
+      "amount": "0.000000",
+      "wagerMultiplier": 1,
+      "freeCaseOpens": 1,
+      "limit": 1,
+      "used": 1,
+      "active": true,
+      "createdAt": "2026-11-12T15:42:06.143Z",
+      "createdBy": "8549949225"
+    }
+  },
+  "transactions": [
+    {
+      "id": "1a0e81bd-2f1f-46c4-97e1-223ce32f2f94",
+      "userId": "8549949225",
+      "type": "case_prize",
+      "amount": "0.100000",
+      "balanceAfter": "0.300000",
+      "description": "Приз кейса FRESH BAR",
+      "reference": "a38644d5-a95e-47fc-8305-501fbfb818dc",
+      "createdAt": "2026-11-12T15:42:23.645Z"
+    },
+    {
+      "id": "73bc5e47-356a-4016-9b2b-de3961c85af1",
+      "userId": "8549949225",
+      "type": "case_open",
+      "amount": "0.000000",
+      "balanceAfter": "0.200000",
+      "description": "Бесплатное открытие FRESH BAR",
+      "reference": "a38644d5-a95e-47fc-8305-501fbfb818dc",
+      "createdAt": "2026-11-12T15:42:23.645Z"
+    },
+    {
+      "id": "48eed31e-10a4-46a5-a9ae-8e709a85a44d",
+      "userId": "8549949225",
+      "type": "promo",
+      "amount": "0.000000",
+      "balanceAfter": "0.200000",
+      "description": "Промокод BORSTART · бесплатных кейсов: 1",
+      "reference": "BORSTART",
+      "createdAt": "2026-11-12T15:42:18.181Z"
+    },
+    {
+      "id": "051608c7-f295-48c8-950b-93fc0dd61762",
+      "userId": "8549949225",
+      "type": "case_prize",
+      "amount": "0.100000",
+      "balanceAfter": "0.200000",
+      "description": "Приз кейса FRESH BAR",
+      "reference": "c0e7cfa9-7da3-45e1-898f-240bec93a6c1",
+      "createdAt": "2026-11-12T15:15:00.047Z"
+    },
+    {
+      "id": "c45b5d53-7181-416b-9530-82f2d420931b",
+      "userId": "8549949225",
+      "type": "case_open",
+      "amount": "-0.500000",
+      "balanceAfter": "0.100000",
+      "description": "Открытие кейса FRESH BAR",
+      "reference": "c0e7cfa9-7da3-45e1-898f-240bec93a6c1",
+      "createdAt": "2026-11-12T15:15:00.047Z"
+    },
+    {
+      "id": "cdb77be9-4b74-420f-aab9-08d80f0a8148",
+      "userId": "8549949225",
+      "type": "case_prize",
+      "amount": "0.100000",
+      "balanceAfter": "0.600000",
+      "description": "Приз кейса FRESH BAR",
+      "reference": "90dbb3ee-f528-44ba-95c8-dfe838e5173e",
+      "createdAt": "2026-11-12T15:14:50.545Z"
+    },
+    {
+      "id": "7d357082-f9ff-4e70-baad-e2073f613cb7",
+      "userId": "8549949225",
+      "type": "case_open",
+      "amount": "-0.500000",
+      "balanceAfter": "0.500000",
+      "description": "Открытие кейса FRESH BAR",
+      "reference": "90dbb3ee-f528-44ba-95c8-dfe838e5173e",
+      "createdAt": "2026-11-12T15:14:50.545Z"
+    },
+    {
+      "id": "75737a13-7b10-4daa-8aa9-435e94492d17",
+      "userId": "8549949225",
+      "type": "admin_credit",
+      "amount": "1.000000",
+      "balanceAfter": "1.000000",
+      "description": "оапррв",
+      "adminId": "8549949225",
+      "createdAt": "2026-11-12T13:27:54.651Z"
+    }
+  ],
+  "webhookEvents": {},
+  "adminLog": [
+    {
+      "action": "promo.create",
+      "code": "BORSTART",
+      "adminId": "8549949225",
+      "at": "2026-11-12T15:42:06.143Z"
+    },
+    {
+      "action": "balance.adjust",
+      "userId": "8549949225",
+      "amount": "1.000000",
+      "reason": "оапррв",
+      "adminId": "8549949225",
+      "at": "2026-11-12T13:27:54.651Z"
+    }
+  ],
+  "games": {
+    "Арена": {
+      "id": "6c5a3c49-ddfe-45fd-974f-f8755974330a",
+      "mode": "Арена",
+      "status": "waiting",
+      "players": {},
+      "bank": "0.000000",
+      "startAt": null,
+      "winner": null,
+      "createdAt": "2026-11-12T15:14:05.395Z"
+    }
+  },
+  "banners": [],
+  "caseOpens": {
+    "90dbb3ee-f528-44ba-95c8-dfe838e5173e": {
+      "id": "90dbb3ee-f528-44ba-95c8-dfe838e5173e",
+      "userId": "8549949225",
+      "prize": "0.10",
+      "cost": "0.50",
+      "createdAt": "2026-11-12T15:14:50.545Z"
+    },
+    "c0e7cfa9-7da3-45e1-898f-240bec93a6c1": {
+      "id": "c0e7cfa9-7da3-45e1-898f-240bec93a6c1",
+      "userId": "8549949225",
+      "prize": "0.10",
+      "cost": "0.50",
+      "createdAt": "2026-11-12T15:15:00.047Z"
+    },
+    "a38644d5-a95e-47fc-8305-501fbfb818dc": {
+      "id": "a38644d5-a95e-47fc-8305-501fbfb818dc",
+      "userId": "8549949225",
+      "prize": "0.10",
+      "cost": "0.00",
+      "free": true,
+      "wagerAdded": "0.100000",
+      "createdAt": "2026-11-12T15:42:23.645Z"
+    }
+  },
+  "houseBalance": "0.000000"
+}
