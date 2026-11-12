@@ -62,7 +62,7 @@ async function checkPendingInvoice() {
       pendingInvoiceId = ''; sessionStorage.removeItem('borDropPendingInvoice'); clearInterval(invoicePollTimer);
       depositStatus.textContent = 'Оплата получена. Баланс пополнен.';
       await refreshServerBalance();
-    } else if (depositDialog?.open) depositStatus.textContent = 'Ожидаем подтверждение оплаты в FK Wallet…';
+    } else if (depositDialog?.open) depositStatus.textContent = 'Ожидаем подтверждение оплаты в Лавэшке…';
   } catch {}
 }
 function watchInvoice(id) {
@@ -82,7 +82,7 @@ if (depositButton && depositDialog) {
       const response = await fetch('/api/deposits', { method: 'POST', headers: paymentHeaders(), body: JSON.stringify({ amount }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return depositStatus.textContent = publicMessage(data, 'Не удалось создать счёт.');
-      depositStatus.textContent = 'Счёт готов. Подтвердите оплату в FK Wallet.';
+      depositStatus.textContent = 'Счёт готов. Подтвердите оплату в Лавэшке.';
       if (data.id) watchInvoice(data.id);
       if (data.paymentUrl) window.Telegram?.WebApp?.openTelegramLink?.(data.paymentUrl) || window.open(data.paymentUrl, '_blank', 'noopener');
     } catch { depositStatus.textContent = 'Связь прервалась. Попробуйте ещё раз.'; }
@@ -108,7 +108,7 @@ if (withdrawHeaderButton && withdrawDialog) {
       const response = await fetch('/api/withdrawals', { method: 'POST', headers: paymentHeaders(), body: JSON.stringify({ amount }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return withdrawStatus.textContent = publicMessage(data, 'Не удалось создать выплату.');
-      withdrawStatus.textContent = 'Выплата создана и отправлена в обработку.'; await refreshServerBalance();
+      withdrawStatus.textContent = 'Выплата отправлена в Лавэшку.'; await refreshServerBalance();
     } catch { withdrawStatus.textContent = 'Связь прервалась. Попробуйте ещё раз.'; }
     finally { event.currentTarget.disabled = latestWager > 0.000001; }
   });
