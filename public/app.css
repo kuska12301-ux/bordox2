@@ -98,3 +98,28 @@ html,body{width:100%;max-width:100%;overflow-x:hidden;overscroll-behavior-x:none
 @keyframes killer-cloak{to{transform:rotate(-1.5deg) skewX(-1deg)}}
 @keyframes friday-impact{50%{transform:translateX(3px);filter:saturate(1.4)}}
 @media(prefers-reduced-motion:reduce){.runner-art,.runner-legs,.runner-body,.runner-pack,.killer-art,.killer-cloak{animation:none}.friday-scene.is-crashed{animation:none}}
+
+/* Admin-controlled maintenance screen and lightweight arena roulette accents. */
+html.maintenance-checking .app-shell{visibility:hidden!important}
+html.maintenance-mode .app-shell{visibility:hidden!important;pointer-events:none!important}
+html.maintenance-mode .phone-only-screen{display:none!important}
+#maintenance-screen{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 30%,#3b101a,#130b11 65%,#08090e);text-align:center}
+.maintenance-card{width:min(100%,360px);padding:34px 24px;border:1px solid #ff475b55;border-radius:26px;background:linear-gradient(145deg,#28151c,#15121a);box-shadow:0 20px 70px #000b,0 0 55px #e9344720}
+.maintenance-card>span{width:54px;height:54px;display:grid;place-items:center;margin:0 auto 16px;border:1px solid #ff536b88;border-radius:50%;background:#d9264022;color:#ff536b;font-size:34px;font-weight:950;box-shadow:0 0 28px #ff334433}
+.maintenance-card small{color:#ff8390;font-size:10px;font-weight:950;letter-spacing:.22em}
+.maintenance-card h1{margin:8px 0;color:#ff5266;font-size:30px;font-weight:1000;letter-spacing:-.04em;text-shadow:0 0 22px #ff344733}
+.maintenance-card p{margin:0;color:#d6c5ca;line-height:1.6;font-size:14px}
+.arena-field.is-center-spin:after{content:"";position:absolute;z-index:3;left:50%;top:50%;width:92px;height:92px;border:2px solid #bdefff42;border-top-color:#fff2a1;border-right-color:#7df1ff;border-radius:50%;box-shadow:0 0 0 7px #65dfff0a,0 0 28px #71eaff66,inset 0 0 20px #55dbff20;transform:translate(-50%,-50%);pointer-events:none;animation:arenaHaloOrbit 2.8s cubic-bezier(.12,.72,.16,1) forwards}
+.arena-field.is-center-spin .arena-puck:before{content:"";position:absolute;inset:-8px;border:1px solid #9cf4ffbb;border-radius:50%;box-shadow:0 0 15px #41dfff99;animation:arenaPuckCharge .5s ease-in-out infinite alternate}
+.arena-puck:after{content:"";position:absolute;z-index:-1;right:72%;top:50%;width:62px;height:8px;border-radius:50%;background:linear-gradient(90deg,transparent,#9cf4ff9c);filter:blur(3px);opacity:0;transform:translateY(-50%)}
+.arena-field.is-rolling:after{opacity:0}
+.arena-field.is-rolling .arena-puck:after{opacity:.9;animation:arenaTrailFlicker .14s ease-in-out infinite alternate}
+.arena-field.is-winner:after{content:"";position:absolute;z-index:3;inset:0;pointer-events:none;background:radial-gradient(ellipse at var(--winner-x,50%) 50%,#ffe58d48 0,transparent 34%);animation:arenaWinnerFlash .7s ease-out 2}
+.arena-field.is-winner .arena-territory.is-winner{transform:scaleY(.97);border:1px solid #ffe58d;filter:brightness(1.5) saturate(1.25);box-shadow:inset 0 0 0 2px #fff1a9,inset 0 0 34px #ffdc774d,0 0 24px #ffd05833}
+.arena-field.is-winner .arena-puck:before{content:"";position:absolute;inset:-9px;border:2px solid #ffe58d;border-radius:50%;animation:arenaWinRipple .8s ease-out 2}
+@keyframes arenaHaloOrbit{0%{opacity:0;transform:translate(-50%,-50%) rotate(0) scale(.65)}12%{opacity:1}100%{opacity:1;transform:translate(-50%,-50%) rotate(900deg) scale(1.28)}}
+@keyframes arenaPuckCharge{to{transform:scale(1.18);opacity:.45}}
+@keyframes arenaTrailFlicker{to{opacity:.5;transform:translateY(-50%) scaleX(.7)}}
+@keyframes arenaWinnerFlash{0%{opacity:0}35%{opacity:1}100%{opacity:0}}
+@keyframes arenaWinRipple{0%{opacity:.9;transform:scale(.75)}100%{opacity:0;transform:scale(1.55)}}
+@media(prefers-reduced-motion:reduce){.arena-field.is-center-spin:after,.arena-puck:before,.arena-field.is-rolling .arena-puck:after,.arena-field.is-winner:after{animation:none}}
