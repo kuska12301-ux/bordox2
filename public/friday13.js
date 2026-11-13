@@ -137,3 +137,43 @@ window.wireFriday = function () {
   };
   renderFridayState();
 };
+
+
+let fridayLastFx = '';
+const fridayRenderStateBeforeFx = renderFridayState;
+renderFridayState = function () {
+  fridayRenderStateBeforeFx();
+  if (!fridayMounted || !fridayRound) return;
+  const scene = document.querySelector('#friday-scene');
+  if (!scene) return;
+  const active = fridayRound.status === 'running';
+  scene.classList.toggle('is-danger', active && fridayCurrentMultiplier() >= 3.5);
+  if (active) { fridayLastFx = ''; scene.classList.remove('has-win'); return; }
+  if (!['cashed_out', 'crashed'].includes(fridayRound.status)) return;
+  const key = fridayRound.id + ':' + fridayRound.status;
+  if (key === fridayLastFx) return;
+  fridayLastFx = key;
+  const won = fridayRound.status === 'cashed_out';
+  scene.classList.toggle('has-win', won);
+  const burst = document.createElement('div');
+  burst.className = 'friday-result-fx ' + (won ? 'is-win' : 'is-crash');
+  burst.setAttribute('aria-hidden', 'true');
+  if (won) {
+    const reward = document.createElement('b');
+    reward.className = 'friday-win-reward';
+    reward.textContent = '+' + money(fridayRound.payout || 0) + ' USDT';
+    burst.append(reward);
+  }
+  for (let i = 0; i < 24; i++) {
+    const bit = document.createElement('i');
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 42 + Math.random() * 92;
+    bit.style.setProperty('--x', Math.cos(angle) * distance + 'px');
+    bit.style.setProperty('--y', Math.sin(angle) * distance + 'px');
+    bit.style.setProperty('--turn', (Math.random() * 540 - 270) + 'deg');
+    bit.style.setProperty('--delay', Math.random() * 140 + 'ms');
+    burst.append(bit);
+  }
+  scene.append(burst);
+  window.setTimeout(() => { burst.remove(); if (won) scene.classList.remove('has-win'); }, 1900);
+};

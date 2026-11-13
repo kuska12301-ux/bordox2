@@ -269,7 +269,28 @@ const server = http.createServer(async (req, res) => {
         });
         if (result.waitMs) return json(res, 409, { error: 'BONUS_ALREADY_CLAIMED', message: 'Бонус уже получен. Возвращайтесь завтра.', waitMs: result.waitMs });
         return json(res, 200, result);
+      }      if (req.method === 'POST' && url.pathname === '/api/cases/friday-13/open') {
+        const input = JSON.parse(await getBody(req) || '{}'); const key = String(input.idempotencyKey || '').trim();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) return json(res, 400, { error: 'INVALID_OPEN_KEY', message: 'Не удалось создать открытие. Попробуйте ещё раз.' });
+        const result = await serializeMoney(async () => {
+          db.caseOpens ||= {}; const previous = db.caseOpens[key];
+          if (previous) return String(previous.userId) === String(user.id) && previous.caseId === 'friday-13' ? { id: previous.id, prize: previous.prize, balance: account(String(user.id)).balance, duplicate: true } : { error: 'OPEN_KEY_USED', message: 'Открытие уже обработано.' };
+          const wallet = account(String(user.id)); const cost = 1;
+          if (Number(wallet.balance) < cost) return { error: 'INSUFFICIENT_BALANCE', message: 'Для открытия нужно 1.00 USDT.' };
+          const draw = randomInt(0, 10_000);
+          const prize = draw < 8_000 ? 0.50 : draw < 9_700 ? 1 : draw < 9_900 ? 2 : draw < 9_950 ? 10 : draw < 9_960 ? 20 : 100;
+          wallet.balance = (Number(wallet.balance) - cost).toFixed(6);
+          recordTransaction({ userId: user.id, type: 'case_open', amount: -cost, balanceAfter: wallet.balance, description: 'Открытие кейса ПЯТНИЦА 13', reference: key });
+          wallet.balance = (Number(wallet.balance) + prize).toFixed(6);
+          recordTransaction({ userId: user.id, type: 'case_prize', amount: prize, balanceAfter: wallet.balance, description: 'Приз кейса ПЯТНИЦА 13 · Джефф', reference: key });
+          const opened = { id: key, userId: String(user.id), caseId: 'friday-13', prize: prize.toFixed(2), cost: cost.toFixed(2), createdAt: new Date().toISOString() };
+          db.caseOpens[key] = opened; await persist();
+          return { id: opened.id, prize: opened.prize, balance: wallet.balance, duplicate: false };
+        });
+        if (result.error) return json(res, 409, result);
+        return json(res, result.duplicate ? 200 : 201, result);
       }
+
       if (req.method === 'GET' && url.pathname === '/api/friday13/state') {
         const round = await serializeMoney(() => syncFridayRound(user.id));
         return json(res, 200, { serverNow: Date.now(), round: publicFridayRound(round) });
