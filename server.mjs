@@ -9,7 +9,6 @@ const publicUrl = String(process.env.PUBLIC_URL || 'https://borcase.bothost.tech
 const rawPage = await readFile(new URL('./public/index.html', import.meta.url), 'utf8');
 const paymentsScript = await readFile(new URL('./public/payments.js', import.meta.url));
 const appScript = await readFile(new URL('./public/app.js', import.meta.url));
-const fridayScript = await readFile(new URL('./public/friday13.js', import.meta.url));
 const appStyles = await readFile(new URL('./public/app.css', import.meta.url));
 const rawAdminPage = await readFile(new URL('./public/admin.html', import.meta.url), 'utf8');
 const adminScript = await readFile(new URL('./public/admin.js', import.meta.url));
@@ -29,7 +28,7 @@ const dbFile = new URL('./data/ledger.json', import.meta.url);
 await mkdir(dataDir, { recursive: true });
 let db = { users: {}, invoices: {}, payouts: {}, promos: {}, transactions: [], webhookEvents: {}, adminLog: [] };
 try { db = JSON.parse(await readFile(dbFile, 'utf8')); } catch {}
-db.users ||= {}; db.invoices ||= {}; db.payouts ||= {}; db.promos ||= {}; db.transactions ||= []; db.webhookEvents ||= {}; db.adminLog ||= []; db.games ||= {}; db.fridayRounds ||= {}; db.banners ||= []; db.caseOpens ||= {}; db.houseBalance ||= '0.000000'; db.maintenanceMode = db.maintenanceMode === true;
+db.users ||= {}; db.invoices ||= {}; db.payouts ||= {}; db.promos ||= {}; db.transactions ||= []; db.webhookEvents ||= {}; db.adminLog ||= []; db.games ||= {}; db.banners ||= []; db.caseOpens ||= {}; db.houseBalance ||= '0.000000'; db.maintenanceMode = db.maintenanceMode === true;
 let saveQueue = Promise.resolve();
 function persist() {
   saveQueue = saveQueue.then(async () => {
@@ -151,18 +150,6 @@ function serializeMoney(operation) {
   moneyQueue = result.catch(() => {});
   return result;
 }
-const fridayMultiplierAt = (round, now = Date.now()) => Math.min(100, Math.max(1, Math.exp(Math.max(0, now - Number(round.startedAt)) / 7000)));
-async function syncFridayRound(userId) {
-  const round = db.fridayRounds[String(userId)];
-  if (!round || round.status !== 'running') return round || null;
-  const multiplier = fridayMultiplierAt(round);
-  if (multiplier >= Number(round.crashAt)) {
-    round.status = 'crashed'; round.crashedAt = Number(round.startedAt) + Math.log(Number(round.crashAt)) * 7000;
-    await persist();
-  }
-  return round;
-}
-const publicFridayRound = round => !round ? null : ({ id: round.id, status: round.status, bet: round.bet, startedAt: round.startedAt, multiplier: round.status === 'running' ? fridayMultiplierAt(round) : Number(round.finalMultiplier || round.crashAt || 1), crashAt: round.status === 'crashed' ? round.crashAt : undefined, payout: round.payout || null });
 const normalizeInvoice = value => value?.invoice || value?.data?.invoice || value?.data || value;
 async function creditPaidInvoice(remoteInvoice) {
   const invoice = normalizeInvoice(remoteInvoice);
@@ -291,52 +278,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, result.duplicate ? 200 : 201, result);
       }
 
-      if (req.method === 'GET' && url.pathname === '/api/friday13/state') {
-        const round = await serializeMoney(() => syncFridayRound(user.id));
-        return json(res, 200, { serverNow: Date.now(), round: publicFridayRound(round) });
-      }
-      if (req.method === 'POST' && url.pathname === '/api/friday13/start') {
-        const input = JSON.parse(await getBody(req) || '{}');
-        const amount = Math.round(Number(input.amount) * 100) / 100;
-        if (!Number.isFinite(amount) || amount < 0.01 || amount > 10_000) return json(res, 400, { error: 'INVALID_BET', message: 'Минимальная ставка — 0.01 USDT.' });
-        const result = await serializeMoney(async () => {
-          const previous = await syncFridayRound(user.id);
-          if (previous?.status === 'running') return { error: 'ROUND_ACTIVE', message: 'Сначала завершите текущий раунд.' };
-          const wallet = account(String(user.id));
-          if (Number(wallet.balance) < amount) return { error: 'INSUFFICIENT_BALANCE', message: 'Недостаточно средств.' };
-          const crashRoll = randomInt(0, 9_900_001) / 10_000_000;
-          const crashAt = Math.min(100, Math.max(1.01, Math.floor((0.99 / (1 - crashRoll)) * 100) / 100));
-          const startedAt = Date.now();
-          const round = { id: randomUUID(), userId: String(user.id), status: 'running', bet: amount.toFixed(2), startedAt, crashAt, crashRoll };
-          wallet.balance = (Number(wallet.balance) - amount).toFixed(6);
-          wallet.wagerRemaining = Math.max(0, Number(wallet.wagerRemaining || 0) - amount).toFixed(6);
-          db.fridayRounds[String(user.id)] = round;
-          recordTransaction({ userId: user.id, type: 'bet', amount: -amount, balanceAfter: wallet.balance, description: 'Ставка · Пятница 13', reference: round.id });
-          await persist();
-          return { serverNow: Date.now(), balance: wallet.balance, wagerRemaining: wallet.wagerRemaining, round: publicFridayRound(round) };
-        });
-        return json(res, result.error ? 409 : 201, result);
-      }
-      if (req.method === 'POST' && url.pathname === '/api/friday13/cashout') {
-        const result = await serializeMoney(async () => {
-          const round = await syncFridayRound(user.id);
-          if (!round || round.status !== 'running') return { error: 'ROUND_NOT_ACTIVE', message: round?.status === 'crashed' ? 'Джейсон догнал! Ставка потеряна.' : 'Нет активного раунда.' };
-          const multiplier = fridayMultiplierAt(round);
-          if (multiplier >= Number(round.crashAt)) {
-            round.status = 'crashed'; round.crashedAt = Number(round.startedAt) + Math.log(Number(round.crashAt)) * 7000;
-            await persist();
-            return { error: 'CRASHED', message: 'Джейсон догнал! Ставка потеряна.', round: publicFridayRound(round) };
-          }
-          const wallet = account(String(user.id));
-          const payout = Math.floor(Number(round.bet) * multiplier * 100) / 100;
-          round.status = 'cashed_out'; round.finalMultiplier = multiplier; round.payout = payout.toFixed(2); round.cashedOutAt = Date.now();
-          wallet.balance = (Number(wallet.balance) + payout).toFixed(6);
-          recordTransaction({ userId: user.id, type: 'win', amount: payout, balanceAfter: wallet.balance, description: `Выигрыш · Пятница 13 · ×${multiplier.toFixed(2)}`, reference: round.id });
-          await persist();
-          return { balance: wallet.balance, wagerRemaining: wallet.wagerRemaining, round: publicFridayRound(round) };
-        });
-        return json(res, result.error ? 409 : 200, result);
-      }
+
       if (req.method === 'GET' && url.pathname === '/api/game/state') {
         const mode = String(url.searchParams.get('mode') || 'Jackpot'); if (!gameModes.has(mode)) return json(res, 400, { error: 'INVALID_MODE' });
         const round = roundFor(mode); await advanceRound(round); return json(res, 200, publicRound(round));
@@ -551,10 +493,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/app.js') {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       return res.end(appScript);
-    }
-    if (req.method === 'GET' && url.pathname === '/friday13.js') {
-      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
-      return res.end(fridayScript);
     }
     if (req.method === 'GET' && url.pathname === '/app.css') {
       res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
