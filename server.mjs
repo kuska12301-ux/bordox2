@@ -28,7 +28,7 @@ const dbFile = new URL('./data/ledger.json', import.meta.url);
 await mkdir(dataDir, { recursive: true });
 let db = { users: {}, invoices: {}, payouts: {}, promos: {}, transactions: [], webhookEvents: {}, adminLog: [] };
 try { db = JSON.parse(await readFile(dbFile, 'utf8')); } catch {}
-db.users ||= {}; db.invoices ||= {}; db.payouts ||= {}; db.promos ||= {}; db.transactions ||= []; db.webhookEvents ||= {}; db.adminLog ||= []; db.games ||= {}; db.banners ||= []; db.caseOpens ||= {}; db.houseBalance ||= '0.000000'; db.maintenanceMode = db.maintenanceMode === true;
+db.users ||= {}; db.invoices ||= {}; db.payouts ||= {}; db.promos ||= {}; db.transactions ||= []; db.webhookEvents ||= {}; db.adminLog ||= []; db.games ||= {}; db.banners ||= []; db.caseOpens ||= {}; db.blackjackRounds ||= {}; db.blackjackActive ||= {}; db.blackjackDealKeys ||= {}; db.houseBalance ||= '0.000000'; db.maintenanceMode = db.maintenanceMode === true;
 let saveQueue = Promise.resolve();
 function persist() {
   saveQueue = saveQueue.then(async () => {
@@ -149,6 +149,39 @@ function serializeMoney(operation) {
   const result = moneyQueue.then(operation, operation);
   moneyQueue = result.catch(() => {});
   return result;
+}
+const blackjackSuits = ['♠', '♥', '♦', '♣'];
+function makeBlackjackDeck() {
+  const deck = blackjackSuits.flatMap(suit => ['A','2','3','4','5','6','7','8','9','10','J','Q','K'].map(rank => ({ rank, suit })));
+  for (let i = deck.length - 1; i > 0; i--) { const j = randomInt(0, i + 1); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  return deck;
+}
+function blackjackValue(cards = []) {
+  let total = 0, aces = 0;
+  for (const card of cards) { if (card.rank === 'A') { total += 11; aces++; } else total += ['K','Q','J'].includes(card.rank) ? 10 : Number(card.rank); }
+  while (total > 21 && aces) { total -= 10; aces--; }
+  return total;
+}
+const isBlackjack = cards => cards.length === 2 && blackjackValue(cards) === 21;
+function publicBlackjackRound(round) {
+  if (!round) return null;
+  const active = round.status === 'active';
+  return { id: round.id, status: round.status, bet: round.bet, playerHand: round.playerHand, dealerHand: active ? [round.dealerHand[0], { hidden: true }] : round.dealerHand, result: round.result || null, payout: round.payout || '0.00', message: round.message || '', createdAt: round.createdAt };
+}
+function finishBlackjack(round, result, wallet) {
+  if (round.status !== 'active') return;
+  const bet = Number(round.bet), payout = result === 'natural' ? bet * 2.5 : result === 'win' ? bet * 2 : result === 'push' ? bet : 0;
+  if (payout > 0) {
+    wallet.balance = (Number(wallet.balance) + payout).toFixed(6);
+    recordTransaction({ userId: round.userId, type: 'blackjack_payout', amount: payout, balanceAfter: wallet.balance, description: result === 'natural' ? 'Blackjack · выплата 3:2' : result === 'push' ? 'Blackjack · возврат ставки' : 'Blackjack · выигрыш', reference: round.id });
+  }
+  round.status = 'finished'; round.result = result; round.payout = payout.toFixed(2); round.finishedAt = Date.now();
+  round.message = ({ natural: 'BLACKJACK! Выплата 3:2', win: 'Вы выиграли раунд', push: 'Ничья · ставка возвращена', loss: 'Дилер забрал раунд', bust: 'Перебор · ставка проиграна' })[result] || 'Раунд завершён';
+}
+function resolveBlackjackDealer(round, wallet) {
+  while (blackjackValue(round.dealerHand) < 17) round.dealerHand.push(round.deck.pop());
+  const player = blackjackValue(round.playerHand), dealer = blackjackValue(round.dealerHand);
+  finishBlackjack(round, player > 21 ? 'bust' : dealer > 21 || player > dealer ? 'win' : player === dealer ? 'push' : 'loss', wallet);
 }
 const normalizeInvoice = value => value?.invoice || value?.data?.invoice || value?.data || value;
 async function creditPaidInvoice(remoteInvoice) {
@@ -279,6 +312,68 @@ const server = http.createServer(async (req, res) => {
       }
 
 
+      if (req.method === 'GET' && url.pathname === '/api/blackjack/state') {
+        const userId = String(user.id), wallet = account(userId), round = db.blackjackRounds[db.blackjackActive[userId]] || null;
+        return json(res, 200, { round: publicBlackjackRound(round), balance: wallet.balance, wagerRemaining: wallet.wagerRemaining });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/blackjack/deal') {
+        const input = JSON.parse(await getBody(req) || '{}'), key = String(input.idempotencyKey || '').trim();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) return json(res, 400, { error: 'INVALID_DEAL_KEY', message: 'Не удалось начать раунд. Попробуйте ещё раз.' });
+        const amount = Math.round(Number(input.amount) * 100) / 100;
+        if (!Number.isFinite(amount) || amount < 0.01 || amount > 10_000) return json(res, 400, { error: 'INVALID_BET', message: 'Ставка должна быть от 0.01 до 10000 USDT.' });
+        const result = await serializeMoney(async () => {
+          const userId = String(user.id), wallet = account(userId), prior = db.blackjackDealKeys[key];
+          if (prior) {
+            if (prior.userId !== userId) return { error: 'DEAL_KEY_USED', message: 'Ключ игры уже использован.' };
+            const previousRound = db.blackjackRounds[prior.roundId];
+            if (previousRound) return { duplicate: true, round: publicBlackjackRound(previousRound), balance: wallet.balance, wagerRemaining: wallet.wagerRemaining };
+            return { error: 'DEAL_KEY_EXPIRED', message: 'Ключ раунда устарел. Нажмите «Играть снова».' };
+          }
+          const active = db.blackjackRounds[db.blackjackActive[userId]];
+          if (active?.status === 'active') return { error: 'ROUND_ACTIVE', message: 'Сначала завершите текущий раунд.' };
+          if (Number(wallet.balance) < amount) return { error: 'INSUFFICIENT_BALANCE', message: 'Недостаточно средств для этой ставки.' };
+          const deck = makeBlackjackDeck(), round = { id: randomUUID(), userId, status: 'active', bet: amount.toFixed(2), deck, playerHand: [deck.pop(), deck.pop()], dealerHand: [deck.pop(), deck.pop()], result: null, payout: '0.00', message: 'Ваш ход · возьмите карту или остановитесь', actionKeys: [], createdAt: Date.now() };
+          wallet.balance = (Number(wallet.balance) - amount).toFixed(6); wallet.wagerRemaining = Math.max(0, Number(wallet.wagerRemaining) - amount).toFixed(6);
+          recordTransaction({ userId, type: 'blackjack_bet', amount: -amount, balanceAfter: wallet.balance, description: 'Ставка · Блэкджек', reference: round.id });
+          db.blackjackRounds[round.id] = round; db.blackjackActive[userId] = round.id; db.blackjackDealKeys[key] = { userId, roundId: round.id, createdAt: Date.now() };
+          if (isBlackjack(round.playerHand)) finishBlackjack(round, isBlackjack(round.dealerHand) ? 'push' : 'natural', wallet);
+          else if (isBlackjack(round.dealerHand)) finishBlackjack(round, 'loss', wallet);
+          const oldRounds = Object.values(db.blackjackRounds).filter(item => item.userId === userId).sort((a,b) => b.createdAt - a.createdAt);
+          for (const old of oldRounds.slice(25)) { delete db.blackjackRounds[old.id]; for (const [dealKey, deal] of Object.entries(db.blackjackDealKeys)) if (deal.roundId === old.id) delete db.blackjackDealKeys[dealKey]; }
+          await persist(); return { round: publicBlackjackRound(round), balance: wallet.balance, wagerRemaining: wallet.wagerRemaining, duplicate: false };
+        });
+        return json(res, result.error ? 409 : result.duplicate ? 200 : 201, result);
+      }
+      if (req.method === 'POST' && url.pathname === '/api/blackjack/action') {
+        const input = JSON.parse(await getBody(req) || '{}'), key = String(input.idempotencyKey || '').trim(), action = String(input.action || '');
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key) || !['hit','stand','double'].includes(action)) return json(res, 400, { error: 'INVALID_ACTION', message: 'Действие не распознано.' });
+        const result = await serializeMoney(async () => {
+          const userId = String(user.id), wallet = account(userId), round = db.blackjackRounds[String(input.roundId || '')];
+          if (!round || round.userId !== userId || db.blackjackActive[userId] !== round.id) return { error: 'ROUND_NOT_FOUND', message: 'Раунд уже недоступен. Обновите игру.' };
+          round.actionKeys ||= [];
+          if (round.actionKeys.includes(key)) return { duplicate: true, round: publicBlackjackRound(round), balance: wallet.balance, wagerRemaining: wallet.wagerRemaining };
+          if (round.status !== 'active') return { error: 'ROUND_FINISHED', message: 'Этот раунд уже завершён.' };
+          if (action === 'double') {
+            const extra = Number(round.bet);
+            if (round.playerHand.length !== 2) return { error: 'DOUBLE_UNAVAILABLE', message: 'Удвоить можно только после первых двух карт.' };
+            if (Number(wallet.balance) < extra) return { error: 'INSUFFICIENT_BALANCE', message: 'На удвоение не хватает средств.' };
+            wallet.balance = (Number(wallet.balance) - extra).toFixed(6); wallet.wagerRemaining = Math.max(0, Number(wallet.wagerRemaining) - extra).toFixed(6);
+            round.bet = (extra * 2).toFixed(2);
+            recordTransaction({ userId, type: 'blackjack_bet', amount: -extra, balanceAfter: wallet.balance, description: 'Удвоение ставки · Блэкджек', reference: round.id });
+            round.playerHand.push(round.deck.pop());
+            if (blackjackValue(round.playerHand) > 21) finishBlackjack(round, 'bust', wallet); else resolveBlackjackDealer(round, wallet);
+          } else if (action === 'hit') {
+            round.playerHand.push(round.deck.pop());
+            const value = blackjackValue(round.playerHand);
+            if (value > 21) finishBlackjack(round, 'bust', wallet);
+            else if (value === 21) resolveBlackjackDealer(round, wallet);
+            else round.message = 'Карта открыта · ваш ход';
+          } else resolveBlackjackDealer(round, wallet);
+          round.actionKeys.push(key); if (round.actionKeys.length > 50) round.actionKeys.shift();
+          await persist(); return { round: publicBlackjackRound(round), balance: wallet.balance, wagerRemaining: wallet.wagerRemaining, duplicate: false };
+        });
+        return json(res, result.error ? 409 : result.duplicate ? 200 : 200, result);
+      }
       if (req.method === 'GET' && url.pathname === '/api/game/state') {
         const mode = String(url.searchParams.get('mode') || 'Jackpot'); if (!gameModes.has(mode)) return json(res, 400, { error: 'INVALID_MODE' });
         const round = roundFor(mode); await advanceRound(round); return json(res, 200, publicRound(round));
