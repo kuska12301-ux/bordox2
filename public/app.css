@@ -123,3 +123,21 @@ html.maintenance-mode .phone-only-screen{display:none!important}
 @keyframes arenaWinnerFlash{0%{opacity:0}35%{opacity:1}100%{opacity:0}}
 @keyframes arenaWinRipple{0%{opacity:.9;transform:scale(.75)}100%{opacity:0;transform:scale(1.55)}}
 @media(prefers-reduced-motion:reduce){.arena-field.is-center-spin:after,.arena-puck:before,.arena-field.is-rolling .arena-puck:after,.arena-field.is-winner:after{animation:none}}
+
+
+/* Friday 13: near-miss pressure and a clear cashout/crash payoff. */
+.friday-scene.is-danger .friday-multiplier{border-color:#f04a5c99;box-shadow:0 0 0 1px #f04a5c33,0 0 28px #f02d4c38,0 10px 32px #0008}
+.friday-scene.is-danger .friday-killer{filter:drop-shadow(0 0 17px #ff3e5e99) drop-shadow(0 10px 12px #000b)}
+.friday-scene.is-danger .friday-multiplier strong{color:#ffe0dc;text-shadow:0 0 24px #ff415fbb}
+.friday-scene.has-win{border-color:#6bf0bdcc;box-shadow:0 0 0 1px #57efb244,0 0 32px #29e8a944;animation:fridayWinFlash .9s cubic-bezier(.18,.72,.18,1) 1}
+.friday-scene.has-win .friday-road{filter:drop-shadow(0 -5px 18px #45e8b277)}
+.friday-scene.has-win .friday-runner{animation:fridayEscape .82s cubic-bezier(.17,.82,.22,1) 1}
+.friday-result-fx{position:absolute;inset:0;z-index:6;overflow:hidden;pointer-events:none}
+.friday-result-fx i{position:absolute;left:50%;top:49%;width:6px;height:11px;border-radius:3px;background:linear-gradient(180deg,#fff4bc,#54f2c2);box-shadow:0 0 9px #62f4ce;opacity:0;animation:fridayBurstFly 1.08s cubic-bezier(.12,.74,.2,1) var(--delay) both}
+.friday-result-fx.is-crash i{width:4px;height:15px;border-radius:2px;background:linear-gradient(180deg,#ffc0b8,#ff435f);box-shadow:0 0 10px #ff345b}
+.friday-win-reward{position:absolute;left:50%;top:37%;padding:8px 13px;border:1px solid #a5ffdf99;border-radius:999px;background:linear-gradient(110deg,#123e38ee,#14292dee);color:#c4ffe7;font-size:clamp(16px,4vw,23px);font-weight:1000;letter-spacing:.02em;text-shadow:0 0 14px #55efbe99;box-shadow:0 8px 28px #0008;white-space:nowrap;animation:fridayRewardPop .85s cubic-bezier(.16,.84,.22,1) both}
+@keyframes fridayBurstFly{0%{opacity:0;transform:translate(-50%,-50%) translate(0,0) rotate(0) scale(.35)}18%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) translate(var(--x),var(--y)) rotate(var(--turn)) scale(.05)}}
+@keyframes fridayRewardPop{0%{opacity:0;transform:translate(-50%,12px) scale(.55)}58%{opacity:1;transform:translate(-50%,-7px) scale(1.09)}78%{transform:translate(-50%,2px) scale(.98)}100%{opacity:1;transform:translate(-50%,0) scale(1)}}
+@keyframes fridayWinFlash{0%,100%{filter:brightness(1)}35%{filter:brightness(1.32) saturate(1.25)}}
+@keyframes fridayEscape{0%{transform:translate3d(-50%,0,0) scale(1)}36%{transform:translate3d(-50%,-14px,0) scale(1.12)}62%{transform:translate3d(-50%,2px,0) scale(.98)}82%{transform:translate3d(-50%,-7px,0) scale(1.04)}100%{transform:translate3d(-50%,0,0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.friday-result-fx i,.friday-win-reward{animation-duration:.01ms;animation-iteration-count:1}.friday-scene.has-win{animation:none}.friday-scene.has-win .friday-runner{animation:none}}
